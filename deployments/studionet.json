@@ -1,0 +1,9 @@
+{
+  "network": "studionet",
+  "chainId": 61999,
+  "contractAddress": "0xF3118770D7D9e75B8D5E31505016105347f18369",
+  "transactionHash": "0x3ff97dceb7d4b4c0c70f58c13bbca312cbc5e262e495b29215eada6e2e9d84dd",
+  "deployer": "0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D",
+  "explorer": "https://explorer-studio.genlayer.com",
+  "deployedAt": "2026-07-29T22:18:12.355Z"
+}

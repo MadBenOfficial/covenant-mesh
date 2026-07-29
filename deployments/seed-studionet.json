@@ -1,0 +1,87 @@
+{
+  "seededAt": "2026-07-29T22:22:09.582Z",
+  "account": "0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D",
+  "contractAddress": "0xF3118770D7D9e75B8D5E31505016105347f18369",
+  "overview": {
+    "active_permits": 2,
+    "audits": 1,
+    "budget_allocated": 60,
+    "budget_consumed": 6,
+    "collections": 6,
+    "organizations": 4,
+    "pending_audits": 1,
+    "pending_requests": 4,
+    "permits": 2,
+    "remediations": 0,
+    "requests": 6,
+    "suspended_permits": 0,
+    "usage_checkpoints": 1
+  },
+  "transactions": [
+    {
+      "functionName": "create_organization",
+      "hash": "0x0a55ac6d0c208d9f4b1006f4d4796eeb1cf339e30d8f7cd283e6ac0433d0b5ef",
+      "succeeded": true
+    },
+    {
+      "functionName": "create_organization",
+      "hash": "0x6557011ede4b6a76d209a2dae0b9cc3ad2ca50915595c50c5b20c9f71eda5136",
+      "succeeded": true
+    },
+    {
+      "functionName": "create_organization",
+      "hash": "0x2661a55f06e287c3d768f331018c569773fe3f0a4f27fa7142ab85cbc84817d9",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0x619952815a4c00fb85db22fe4f3addece87923e8ea47f58650a055dc7f3f4acb",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0x91d4c15538a3689c89dcbb80391bae3db76208733350daff1e01a5ce696aa510",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0xcd23bba167da14b0b4e6b331882cfd820fc1de8edda69db1c39ac3dc62ac4fdc",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0xfaba171d58c1820fa7eb5daa83750f43e0fc86c843c7e6f906590115a8b034b4",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0x02811c6b4288a2b1af7a5a1cc691d99e5c3015f3db34a0629c988119bef7c822",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_access_request",
+      "hash": "0x9931632d4cd939312f229ea0f7e59b34b198701e3f3bb71c0fbb8f2432ff81de",
+      "succeeded": true
+    },
+    {
+      "functionName": "resolve_access_request",
+      "hash": "0xdf1eb53705d5e681a74cf1cb7f6142848f2de7c55b7c6e04878e392945e9e894",
+      "succeeded": true
+    },
+    {
+      "functionName": "resolve_access_request",
+      "hash": "0x4356fd6244b070ebc8599437ab8f251fb2fea055b677f20933627b99e13c8c61",
+      "succeeded": true
+    },
+    {
+      "functionName": "record_usage",
+      "hash": "0x76f017c54fcb5dff593899e9e23181ea222eca5c9936f0d9f2a633eae655db6a",
+      "succeeded": true
+    },
+    {
+      "functionName": "submit_audit",
+      "hash": "0x8e44607addd9de5b2e7d05289f90a83f270913e46ca1f51ac941c60e00aa46bf",
+      "succeeded": true
+    }
+  ]
+}
