@@ -53,7 +53,7 @@ onMounted(() => {
       <h1>Permission should<br>travel with the data.</h1>
       <div class="landing-copy">
         <p>A living permission layer where communities publish enforceable covenants, researchers earn bounded access, and every use remains accountable.</p>
-        <span>06 collections<br>02 active permits<br>60 units allocated</span>
+        <span>06 collections<br>02 issued permits<br>60 units allocated</span>
       </div>
     </section>
     <div class="landing-notes" aria-hidden="true">
