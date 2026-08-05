@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta, timezone
 
 
 def address_hex(address):
@@ -46,6 +47,11 @@ def mock_allow(direct_vm):
             }
         ),
     )
+
+
+def warp_from(timestamp, days, direct_vm):
+    target = datetime.fromtimestamp(int(timestamp), timezone.utc) + timedelta(days=days)
+    direct_vm.warp(target.isoformat().replace("+00:00", "Z"))
 
 
 def test_genesis_collections_are_complete(direct_vm, direct_deploy, direct_alice):
@@ -265,3 +271,75 @@ def test_remediation_restores_suspended_permit(
     assert contract.get_remediations()[0].decision == "RESTORE"
     assert contract.get_organizations()[-1].reputation == 47
 
+
+def test_overdue_audit_blocks_usage_and_audit_restores_schedule(
+    direct_vm, direct_deploy, direct_alice, direct_bob
+):
+    contract = deploy_as(direct_vm, direct_deploy, direct_alice)
+    org_id = create_research_org(contract, direct_vm, direct_bob)
+    request_id = request_access(contract, org_id, "COL-004")
+    mock_allow(direct_vm)
+    contract.resolve_access_request(request_id)
+    permit = contract.get_permits()[0]
+    warp_from(permit.issued_at, 15, direct_vm)
+
+    status = contract.get_permit_status("PER-0001")
+    assert status["effective_status"] == "AUDIT_OVERDUE"
+    with direct_vm.expect_revert("Permit is not active"):
+        contract.record_usage(
+            "PER-0001",
+            1,
+            "Attempted aggregate analysis after the mandatory compliance audit became overdue.",
+            "",
+        )
+
+    audit_id = contract.submit_audit(
+        "PER-0001",
+        "The overdue review confirms that access logs, cohort thresholds, export controls, and deletion scheduling remained aligned with the issued conditions throughout the review period.",
+        "https://example.org/overdue-audit",
+    )
+    direct_vm.mock_llm(
+        r".*independent compliance panel.*",
+        json.dumps(
+            {
+                "outcome": "COMPLIANT",
+                "compliance_score": 94,
+                "findings": "Controls remained effective and the delayed review is now complete.",
+            }
+        ),
+    )
+    contract.resolve_audit(audit_id)
+
+    restored = contract.get_permits()[0]
+    assert restored.status == "ACTIVE"
+    assert restored.next_audit_due > status["now"]
+
+
+def test_expired_permit_is_reported_blocked_and_persisted(
+    direct_vm, direct_deploy, direct_alice, direct_bob
+):
+    contract = deploy_as(direct_vm, direct_deploy, direct_alice)
+    org_id = create_research_org(contract, direct_vm, direct_bob)
+    request_id = request_access(contract, org_id)
+    mock_allow(direct_vm)
+    contract.resolve_access_request(request_id)
+    permit = contract.get_permits()[0]
+    warp_from(permit.expires_at, 1, direct_vm)
+
+    assert contract.get_permit_status("PER-0001")["effective_status"] == "EXPIRED"
+    with direct_vm.expect_revert("Permit is not active"):
+        contract.record_usage(
+            "PER-0001",
+            1,
+            "Attempted aggregate processing after the permit retention window had fully expired.",
+            "",
+        )
+
+    assert contract.sync_permit_status("PER-0001") == "EXPIRED"
+    assert contract.get_permits()[0].status == "EXPIRED"
+    with direct_vm.expect_revert("Permit cannot be audited"):
+        contract.submit_audit(
+            "PER-0001",
+            "This report is intentionally submitted after expiry to prove that an expired right cannot be revived through a late compliance audit.",
+            "https://example.org/expired-audit",
+        )

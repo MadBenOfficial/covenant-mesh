@@ -46,7 +46,7 @@ onMounted(() => {
     <canvas ref="canvas" class="landing-canvas" aria-hidden="true"></canvas>
     <header class="landing-head">
       <a class="landing-mark" href="#" aria-label="Covenant Mesh home"><span>CM</span><strong>Covenant Mesh</strong></a>
-      <div class="network-label"><i></i> StudioNet / live</div>
+      <div class="landing-actions"><div class="network-label"><i></i> StudioNet / live</div><button :disabled="busy" @click="$emit('connect')">{{ busy ? "Connecting" : "Connect wallet" }}<ArrowUpRight :size="17" /></button></div>
     </header>
     <section class="landing-statement">
       <p class="kicker">Collective data rights / enforced by intelligent consensus</p>
@@ -63,7 +63,7 @@ onMounted(() => {
     <footer class="signature-rail">
       <div><Fingerprint :size="28" /><p><strong>Enter by signature</strong><br>Wallet access persists on this device.</p></div>
       <p v-if="error" class="landing-error">{{ error }}</p>
-      <button :disabled="busy" @click="$emit('connect')">{{ busy ? "Requesting signature" : "Connect wallet" }}<ArrowUpRight :size="19" /></button>
+      <span class="landing-enter">ACCOUNTABLE ACCESS / PERSISTENT SESSION</span>
     </footer>
   </main>
 </template>

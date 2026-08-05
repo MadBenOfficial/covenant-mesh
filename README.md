@@ -6,7 +6,7 @@
 > steward, a declared purpose, a bounded method, and an accountable user.
 
 [Open the live mesh](https://madbenofficial.github.io/covenant-mesh/) |
-[Inspect the contract](https://explorer-studio.genlayer.com/address/0xF3118770D7D9e75B8D5E31505016105347f18369) |
+[Inspect the contract](https://explorer-studio.genlayer.com/address/0x18B57ffAc641623783bE40C066cAff3c369505e7) |
 [Review the source](https://github.com/MadBenOfficial/covenant-mesh)
 
 ![Covenant Mesh live permission graph](screenshot.png)
@@ -29,8 +29,8 @@ rights, or restore access after remediation.
 | Instrument | Public reference |
 | --- | --- |
 | Network | GenLayer StudioNet, chain `61999` |
-| Intelligent Contract | [`0xF3118770D7D9e75B8D5E31505016105347f18369`](https://explorer-studio.genlayer.com/address/0xF3118770D7D9e75B8D5E31505016105347f18369) |
-| Deployment transaction | [`0x3ff97d...e9d84dd`](https://explorer-studio.genlayer.com/transactions/0x3ff97dceb7d4b4c0c70f58c13bbca312cbc5e262e495b29215eada6e2e9d84dd) |
+| Intelligent Contract | [`0x18B57ffAc641623783bE40C066cAff3c369505e7`](https://explorer-studio.genlayer.com/address/0x18B57ffAc641623783bE40C066cAff3c369505e7) |
+| Deployment transaction | [`0x62f517...737501`](https://explorer-studio.genlayer.com/tx/0x62f51723e5cf24b2c9dac840225a5a914adf7daa13a132789f099c9e08737501) |
 | Deployer | `0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D` |
 | GitHub account | [`MadBenOfficial`](https://github.com/MadBenOfficial) |
 | Live application | [madbenofficial.github.io/covenant-mesh](https://madbenofficial.github.io/covenant-mesh/) |
@@ -47,8 +47,10 @@ The current contract contains real StudioNet state:
 | Consumed privacy units | 6 |
 | Usage checkpoints | 1 |
 | Compliance audits | 1 |
+| Remediation decisions | 1 |
+| Suspended permits | 1 |
 
-Thirteen successful post-deployment transactions created this state. Their
+Sixteen successful post-deployment transactions created this state. Their
 function names, hashes, signer, contract address, and execution result are
 preserved in [`deployments/seed-studionet.json`](deployments/seed-studionet.json).
 
@@ -77,22 +79,38 @@ Malformed validator output rotates consensus instead of mutating state.
 
 Issued permits expose budget, expiry, holder, conditions, and audit schedule.
 Each usage checkpoint consumes budget and attaches a public artifact. Exhausted
-or suspended permits cannot silently continue.
+or suspended permits cannot silently continue. Every permit-sensitive write
+materializes its time schedule first: expiry is terminal, while an overdue audit
+changes the effective state to `AUDIT_OVERDUE` and blocks further usage.
 
 ### V. Audit and remediation
 
 Permit holders submit evidence against the covenant. A warning can preserve the
 permit with findings; suspension or revocation changes durable rights.
 Remediation creates a new reviewable protocol event rather than editing history.
+An approved remediation resets the audit clock and restores only unexpired
+rights; a rejected plan leaves the permit suspended. Duplicate pending audits
+and remediation plans are rejected on-chain.
+
+## Reviewer Remediation Matrix
+
+| Requested behavior | Contract enforcement | Application path |
+| --- | --- | --- |
+| Wallet must not invoke `wallet_getSnaps` | Browser client binds the injected EIP-1193 provider directly and never calls `client.connect()` | Landing and persistent header wallet controls |
+| Usable organization onboarding | `create_organization` records wallet ownership; request submission enforces that owner | First-connect onboarding band, create form, and active-organization selector |
+| Submitted remediation methods | Holder-only `submit_remediation`; permissionless `resolve_remediation` through validator consensus | Suspended-permit action plus remediation ledger and consensus button |
+| Permit expiry | Every sensitive write computes and enforces `EXPIRED`; `sync_permit_status` persists it | Effective status, deadline warning, and Enforce action |
+| Overdue audits | Usage is rejected as `AUDIT_OVERDUE`; audit submission remains available as the recovery path | Overdue badge and enabled Submit audit action |
 
 ## Application Route
 
 1. Connect a wallet through the landing membrane.
 2. Inspect collections, stewards, safeguards, and remaining budgets.
-3. Submit a bounded access request.
-4. Follow the animated wallet and validator lifecycle.
-5. Read the persisted verdict and StudioNet receipt.
-6. Record permitted use, submit an audit, or propose remediation.
+3. Create or select an organization owned by the connected wallet.
+4. Submit a bounded access request.
+5. Follow the animated wallet and validator lifecycle.
+6. Record permitted use, submit an overdue audit, or remediate a suspension.
+7. Read the persisted verdict and its `/tx/` StudioNet receipt.
 
 Wallet connection persists across refreshes. Every transaction surface blocks
 duplicate submission, displays a waiting animation while pending, preserves a
@@ -123,7 +141,7 @@ corepack pnpm run build
 ```
 
 Current verification baseline: GenVM lint passed, contract schema validation
-passed, and all `9` direct tests passed.
+passed, all `11` direct tests passed, and the production Vue build completed.
 
 `corepack pnpm run seed` is an operator command for a fresh deployment. It
 writes real StudioNet state and is intentionally excluded from routine checks.
@@ -135,5 +153,11 @@ scripts read `GENLAYER_PRIVATE_KEY_1` from the ignored workspace `.env`; the key
 is never written to deployment manifests, frontend code, screenshots, or Git.
 The tracked environment example contains only the public contract address and
 explorer URL.
+
+The live fixture state was created entirely by account 1,
+`0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D`. This seeded identity is useful for
+reviewing its holder-only actions, but it is not a hidden operator requirement:
+any wallet can onboard an organization, owners submit their own requests and
+evidence, and consensus resolution methods are permissionless.
 
 MIT licensed.

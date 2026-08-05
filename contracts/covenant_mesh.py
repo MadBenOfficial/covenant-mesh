@@ -343,6 +343,37 @@ class CovenantMesh(gl.Contract):
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Permit not found")
         return self.permits[permit_id]
 
+    def _materialize_permit_schedule(self, permit: Permit) -> Permit:
+        """Persist time-based restrictions before any permit-sensitive write."""
+        now = self._now()
+        if permit.status in ("ACTIVE", "EXHAUSTED", "AUDIT_OVERDUE", "SUSPENDED"):
+            if permit.expires_at > u64(0) and now >= permit.expires_at:
+                permit.status = "EXPIRED"
+            elif (
+                permit.status == "ACTIVE"
+                and permit.next_audit_due > u64(0)
+                and now >= permit.next_audit_due
+            ):
+                permit.status = "AUDIT_OVERDUE"
+            self.permits[permit.id] = permit
+        return permit
+
+    def _effective_permit_status(self, permit: Permit) -> str:
+        now = self._now()
+        if (
+            permit.status in ("ACTIVE", "EXHAUSTED", "AUDIT_OVERDUE", "SUSPENDED")
+            and permit.expires_at > u64(0)
+            and now >= permit.expires_at
+        ):
+            return "EXPIRED"
+        if (
+            permit.status == "ACTIVE"
+            and permit.next_audit_due > u64(0)
+            and now >= permit.next_audit_due
+        ):
+            return "AUDIT_OVERDUE"
+        return permit.status
+
     def _bounded(self, value, minimum: int, maximum: int) -> int:
         try:
             return max(minimum, min(maximum, int(value)))
@@ -708,7 +739,7 @@ re-identification, or exhausted budget used beyond authorization.
         purpose_note: str,
         artifact_url: str,
     ) -> str:
-        permit = self._require_permit(permit_id)
+        permit = self._materialize_permit_schedule(self._require_permit(permit_id))
         if permit.holder != gl.message.sender_address:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the permit holder")
         if permit.status != "ACTIVE":
@@ -744,11 +775,15 @@ re-identification, or exhausted budget used beyond authorization.
         report: str,
         evidence_url: str,
     ) -> str:
-        permit = self._require_permit(permit_id)
+        permit = self._materialize_permit_schedule(self._require_permit(permit_id))
         if permit.holder != gl.message.sender_address:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the permit holder")
-        if permit.status not in ("ACTIVE", "EXHAUSTED"):
+        if permit.status not in ("ACTIVE", "EXHAUSTED", "AUDIT_OVERDUE"):
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Permit cannot be audited")
+        for audit_id in self.audit_ids:
+            existing = self.audits[audit_id]
+            if existing.permit_id == permit_id and existing.status == "PENDING":
+                raise gl.vm.UserError(f"{ERROR_EXPECTED} Permit already has a pending audit")
         self._validate_text(report, "Audit report", 100, 2200)
         if not evidence_url.startswith("https://"):
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Evidence URL must use HTTPS")
@@ -777,7 +812,9 @@ re-identification, or exhausted budget used beyond authorization.
         audit = self.audits[audit_id]
         if audit.status != "PENDING":
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Audit is not pending")
-        permit = self._require_permit(audit.permit_id)
+        permit = self._materialize_permit_schedule(
+            self._require_permit(audit.permit_id)
+        )
         collection = self._require_collection(permit.collection_id)
         organization = self._require_organization(permit.organization_id)
         result = self._assess_audit(audit, permit, collection, organization)
@@ -789,18 +826,36 @@ re-identification, or exhausted budget used beyond authorization.
         permit.audit_count += u32(1)
         organization.audit_count += u32(1)
 
+        expired = permit.status == "EXPIRED"
         if audit.outcome == "COMPLIANT":
             organization.reputation = u32(min(100, int(organization.reputation) + 6))
-            permit.next_audit_due = u64(
-                int(self._now()) + int(collection.audit_interval_days) * 86_400
-            )
+            if not expired:
+                permit.status = (
+                    "EXHAUSTED"
+                    if permit.consumed_budget >= permit.allocated_budget
+                    else "ACTIVE"
+                )
+                permit.next_audit_due = u64(
+                    int(self._now()) + int(collection.audit_interval_days) * 86_400
+                )
         elif audit.outcome == "WARNING":
             organization.reputation = u32(max(0, int(organization.reputation) - 3))
+            if not expired:
+                permit.status = (
+                    "EXHAUSTED"
+                    if permit.consumed_budget >= permit.allocated_budget
+                    else "ACTIVE"
+                )
+                permit.next_audit_due = u64(
+                    int(self._now()) + int(collection.audit_interval_days) * 86_400
+                )
         elif audit.outcome == "SUSPEND":
-            permit.status = "SUSPENDED"
+            if not expired:
+                permit.status = "SUSPENDED"
             organization.reputation = u32(max(0, int(organization.reputation) - 12))
         else:
-            permit.status = "REVOKED"
+            if not expired:
+                permit.status = "REVOKED"
             organization.reputation = u32(max(0, int(organization.reputation) - 25))
 
         self.audits[audit_id] = audit
@@ -809,11 +864,17 @@ re-identification, or exhausted budget used beyond authorization.
 
     @gl.public.write
     def submit_remediation(self, permit_id: str, plan: str) -> str:
-        permit = self._require_permit(permit_id)
+        permit = self._materialize_permit_schedule(self._require_permit(permit_id))
         if permit.holder != gl.message.sender_address:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Only the permit holder")
         if permit.status != "SUSPENDED":
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Permit is not suspended")
+        for remediation_id in self.remediation_ids:
+            existing = self.remediations[remediation_id]
+            if existing.permit_id == permit_id and existing.status == "PENDING":
+                raise gl.vm.UserError(
+                    f"{ERROR_EXPECTED} Permit already has a pending remediation"
+                )
         self._validate_text(plan, "Remediation plan", 100, 1800)
         remediation_id = f"REM-{len(self.remediation_ids) + 1:04d}"
         self.remediation_ids.append(remediation_id)
@@ -838,7 +899,9 @@ re-identification, or exhausted budget used beyond authorization.
         remediation = self.remediations[remediation_id]
         if remediation.status != "PENDING":
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Remediation is not pending")
-        permit = self._require_permit(remediation.permit_id)
+        permit = self._materialize_permit_schedule(
+            self._require_permit(remediation.permit_id)
+        )
         if permit.status != "SUSPENDED":
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Permit is no longer suspended")
         plan = remediation.plan
@@ -879,12 +942,40 @@ deadlines, deletion or containment where relevant, and future monitoring.
         remediation.status = "RESOLVED"
         remediation.resolved_at = self._now()
         if remediation.decision == "RESTORE":
-            permit.status = "ACTIVE"
+            collection = self._require_collection(permit.collection_id)
+            permit.status = (
+                "EXHAUSTED"
+                if permit.consumed_budget >= permit.allocated_budget
+                else "ACTIVE"
+            )
+            permit.next_audit_due = u64(
+                int(self._now()) + int(collection.audit_interval_days) * 86_400
+            )
             organization = self._require_organization(permit.organization_id)
             organization.reputation = u32(min(100, int(organization.reputation) + 4))
             self.organizations[organization.id] = organization
         self.remediations[remediation_id] = remediation
         self.permits[permit.id] = permit
+
+    @gl.public.write
+    def sync_permit_status(self, permit_id: str) -> str:
+        permit = self._materialize_permit_schedule(self._require_permit(permit_id))
+        return permit.status
+
+    @gl.public.view
+    def get_permit_status(self, permit_id: str) -> dict:
+        permit = self._require_permit(permit_id)
+        effective_status = self._effective_permit_status(permit)
+        return {
+            "permit_id": permit.id,
+            "stored_status": permit.status,
+            "effective_status": effective_status,
+            "is_expired": effective_status == "EXPIRED",
+            "is_audit_overdue": effective_status == "AUDIT_OVERDUE",
+            "expires_at": permit.expires_at,
+            "next_audit_due": permit.next_audit_due,
+            "now": self._now(),
+        }
 
     @gl.public.view
     def get_overview(self) -> dict:
@@ -893,7 +984,7 @@ deadlines, deletion or containment where relevant, and future monitoring.
         pending_audits = 0
         suspended_permits = 0
         for permit_id in self.permit_ids:
-            status = self.permits[permit_id].status
+            status = self._effective_permit_status(self.permits[permit_id])
             if status == "ACTIVE":
                 active_permits += 1
             elif status == "SUSPENDED":
@@ -947,4 +1038,3 @@ deadlines, deletion or containment where relevant, and future monitoring.
     @gl.public.view
     def get_remediations(self) -> list:
         return [self.remediations[item_id] for item_id in self.remediation_ids]
-

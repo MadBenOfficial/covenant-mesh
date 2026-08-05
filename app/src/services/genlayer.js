@@ -4,7 +4,7 @@ import { ExecutionResult, TransactionStatus } from "genlayer-js/types";
 
 export const contractAddress =
   import.meta.env.VITE_CONTRACT_ADDRESS ||
-  "0xF3118770D7D9e75B8D5E31505016105347f18369";
+  "0x18B57ffAc641623783bE40C066cAff3c369505e7";
 export const explorerUrl =
   import.meta.env.VITE_EXPLORER_URL || "https://explorer-studio.genlayer.com";
 export const publicClient = createClient({ chain: studionet });
@@ -58,8 +58,11 @@ export async function connectWallet({ silent = false } = {}) {
   });
   const address = accounts?.[0];
   if (!address) return null;
-  const client = createClient({ chain: studionet, account: address });
-  if (!silent) await client.connect("studionet");
+  const client = createClient({
+    chain: studionet,
+    account: address,
+    provider: window.ethereum,
+  });
   return { address, client };
 }
 
@@ -130,7 +133,6 @@ export async function writeContract({
 }) {
   if (!client) throw new Error("Connect your wallet first.");
   onStage?.("signature");
-  await client.connect("studionet");
   const hash = await retry(() =>
     client.writeContract({ address: contractAddress, functionName, args }),
   );

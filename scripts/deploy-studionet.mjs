@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { createAccount, createClient } from "genlayer-js";
 import { studionet } from "genlayer-js/chains";
 import { TransactionStatus } from "genlayer-js/types";
@@ -14,10 +15,13 @@ const privateKey = env
 if (!privateKey) throw new Error("GENLAYER_PRIVATE_KEY_1 is missing");
 
 const account = createAccount(privateKey);
+const expectedDeployer = "0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D";
+if (account.address.toLowerCase() !== expectedDeployer.toLowerCase()) {
+  throw new Error(`Account 1 mismatch: expected ${expectedDeployer}`);
+}
 const client = createClient({ chain: studionet, account });
-const code = new Uint8Array(
-  readFileSync(resolve(root, "contracts/covenant_mesh.py")),
-);
+const source = readFileSync(resolve(root, "contracts/covenant_mesh.py"));
+const code = new Uint8Array(source);
 
 console.log(`Deploying Covenant Mesh from ${account.address}...`);
 const hash = await client.deployContract({ code, args: [] });
@@ -41,6 +45,7 @@ const deployment = {
   contractAddress: address,
   transactionHash: hash,
   deployer: account.address,
+  sourceSha256: createHash("sha256").update(source).digest("hex"),
   explorer: "https://explorer-studio.genlayer.com",
   deployedAt: new Date().toISOString(),
 };

@@ -17,6 +17,10 @@ const privateKey = env
 if (!privateKey) throw new Error("GENLAYER_PRIVATE_KEY_1 is missing");
 
 const account = createAccount(privateKey);
+const expectedSeeder = "0x659718Bc33FB7CD9f7D111F5270EEbca58e18c3D";
+if (account.address.toLowerCase() !== expectedSeeder.toLowerCase()) {
+  throw new Error(`Account 1 mismatch: expected ${expectedSeeder}`);
+}
 const client = createClient({ chain: studionet, account });
 const address = deployment.contractAddress;
 const transactions = [];
@@ -209,9 +213,33 @@ if (permits.length) {
   if (!audits.some((item) => item.permit_id === first.id)) {
     await write("submit_audit", [
       first.id,
-      "The initial analysis used only approved variables, generated neighborhood-level aggregates, suppressed all sparse cells, recorded six privacy-budget units, retained no row-level exports, and scheduled deletion of working extracts within the permit window. Methods and limitations are publicly documented.",
+      "The internal review found that two temporary row-level extracts lack verified deletion receipts and that several access-log entries remain unreconciled. Publication and further processing are paused while the team contains the workspace, verifies deletion, and completes independent log review. This material uncertainty requires formal remediation before use resumes.",
       "https://github.com/MadBenOfficial/covenant-mesh",
     ]);
+  }
+
+  let currentAudits = await read("get_audits");
+  const firstAudit = currentAudits.find((item) => item.permit_id === first.id);
+  if (firstAudit?.status === "PENDING") {
+    await write("resolve_audit", [firstAudit.id]);
+  }
+
+  permits = await read("get_permits");
+  const auditedPermit = permits.find((item) => item.id === first.id);
+  if (auditedPermit?.status === "SUSPENDED") {
+    let remediations = await read("get_remediations");
+    let remediation = remediations.find((item) => item.permit_id === first.id);
+    if (!remediation) {
+      await write("submit_remediation", [
+        first.id,
+        "Within twenty-four hours the security lead will delete both temporary extracts, publish signed deletion receipts, and reconcile every access-log entry. An independent reviewer will attest to containment within forty-eight hours. Export controls will be revalidated before access resumes, with weekly log review and public exception reporting for the remainder of the permit.",
+      ]);
+      remediations = await read("get_remediations");
+      remediation = remediations.find((item) => item.permit_id === first.id);
+    }
+    if (remediation?.status === "PENDING") {
+      await write("resolve_remediation", [remediation.id]);
+    }
   }
 }
 
